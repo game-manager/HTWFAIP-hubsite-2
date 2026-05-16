@@ -120,21 +120,12 @@
 
 <div id="login-screen">
   <div class="login-card">
-    <div class="login-logo">IDS<small>IDS Hub — 管理者</small></div>
-    <h1>ログイン</h1>
-    <p class="subtitle">管理者メールアドレスとパスワードを入力してください。</p>
+    <div class="login-logo">IDS<small>Hub — 管理者</small></div>
     <form onsubmit="handleLogin(event)">
-      <div class="field-group">
-        <label for="email-input">メールアドレス</label>
-        <input type="email" id="email-input" class="field-input" placeholder="admin@example.com" autocomplete="email" required />
-      </div>
-      <div class="field-group">
-        <label for="pw-input">パスワード</label>
-        <input type="password" id="pw-input" class="field-input" placeholder="パスワードを入力" autocomplete="current-password" required />
-      </div>
-      <button type="submit" class="login-btn" id="login-btn">ログイン</button>
+      <div class="form-row"><label>パスワード</label><input type="password" id="pw-input" class="form-input" placeholder="パスワード" required /></div>
+      <button type="submit" class="btn btn-primary btn-block" id="login-btn">ログイン</button>
+      <div class="error-message" id="login-error">パスワードが正しくありません</div>
     </form>
-    <p class="login-error" id="login-error">メールアドレスまたはパスワードが違います。</p>
   </div>
 </div>
 
@@ -330,7 +321,7 @@
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, signOut, updatePassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-auth.js";
+
 import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js";
 const firebaseConfig = {
   apiKey: "AIzaSyDEdOK2_B6YLO19_78BucCaoKhxyNcYHfU",
@@ -343,7 +334,7 @@ const firebaseConfig = {
   measurementId: "G-83PQX0PNL2"
 };
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+
 const db = getDatabase(app);
 const DEFAULT = {
   news:[
@@ -377,38 +368,41 @@ onValue(ref(db, "siteData"), (snapshot) => {
   if(data){ state = normalizeState(data); refreshAll(); markSaved(); }
 });
 
-onAuthStateChanged(auth, (user) => {
-  if(user){
+const ADMIN_PASSWORD = "HeLlOiDsHuB";
+let isLoggedIn = localStorage.getItem("idsHubAdminLoggedIn") === "true";
+function checkLoginStatus(){
+  if(isLoggedIn){
     document.getElementById("login-screen").style.display = "none";
     document.getElementById("admin-screen").classList.add("show");
-    const emailEl = document.getElementById("current-user-email");
-    if(emailEl) emailEl.textContent = user.email;
     refreshAll();
   } else {
     document.getElementById("admin-screen").classList.remove("show");
     document.getElementById("login-screen").style.display = "flex";
   }
-});
-window.handleLogin = async function(e){
+}
+checkLoginStatus();
+window.handleLogin = function(e){
   e.preventDefault();
-  const email = document.getElementById("email-input").value.trim();
   const password = document.getElementById("pw-input").value;
   const btn = document.getElementById("login-btn");
-  btn.textContent = "ログイン中..."; btn.disabled = true;
-  try{ await signInWithEmailAndPassword(auth, email, password); document.getElementById("login-error").classList.remove("show"); }
-  catch(err){ document.getElementById("login-error").classList.add("show"); document.getElementById("pw-input").value = ""; }
-  finally { btn.textContent = "ログイン"; btn.disabled = false; }
+  const errorEl = document.getElementById("login-error");
+  if(password === ADMIN_PASSWORD){
+    isLoggedIn = true;
+    localStorage.setItem("idsHubAdminLoggedIn", "true");
+    errorEl.classList.remove("show");
+    document.getElementById("pw-input").value = "";
+    checkLoginStatus();
+  } else {
+    errorEl.classList.add("show");
+    document.getElementById("pw-input").value = "";
+  }
 };
-window.handleLogout = async function(){ await signOut(auth); };
-window.changePassword = async function(){
-  const np = document.getElementById("new-pass").value;
-  const cp = document.getElementById("confirm-pass").value;
-  if(!np){ showToast("パスワードを入力してください","danger"); return; }
-  if(np !== cp){ showToast("パスワードが一致しません","danger"); return; }
-  if(np.length < 6){ showToast("6文字以上にしてください","danger"); return; }
-  try{ await updatePassword(auth.currentUser, np); document.getElementById("new-pass").value = ""; document.getElementById("confirm-pass").value = ""; showToast("パスワードを変更しました ✓"); }
-  catch(err){ showToast("変更に失敗しました: " + err.message, "danger"); }
+window.handleLogout = function(){
+  isLoggedIn = false;
+  localStorage.removeItem("idsHubAdminLoggedIn");
+  checkLoginStatus();
 };
+
 window.publishToFirebase = async function(){
   const btn = document.getElementById("publish-btn");
   btn.disabled = true;
